@@ -39,7 +39,7 @@ func init() {
 			}
 			authUsers[pairSplit[0]] = pairSplit[1]
 		}
-		log.Println("Allowed users: %+v", authUsers)
+		log.Println("Allowed users:", authUsers)
 	}
 }
 
@@ -70,13 +70,21 @@ func ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func BasicAuth(w http.ResponseWriter, r *http.Request, users map[string]string) bool {
 	user, expected, ok := r.BasicAuth()
 	if !ok {
-		//WWW-Authenticate: Basic realm="RealmName"
-		w.Header().Add("WWW-Authenticate", "Basic realm=\"Please log in\"")
-		w.WriteHeader(http.StatusUnauthorized)
+		requestAuth(w)
 		return false
 	}
 	pwd, ok := users[user]
-	return subtle.ConstantTimeCompare([]byte(pwd), []byte(expected)) == 1
+	valid := subtle.ConstantTimeCompare([]byte(pwd), []byte(expected)) == 1
+	if !valid {
+		requestAuth(w)
+		return false
+	}
+	return true
+}
+
+func requestAuth(w http.ResponseWriter) {
+	w.Header().Add("WWW-Authenticate", "Basic realm=\"Please log in\"")
+	w.WriteHeader(http.StatusUnauthorized)
 }
 
 func ServeFile(ctx context.Context, cancel context.CancelFunc, w http.ResponseWriter, r *http.Request) {
