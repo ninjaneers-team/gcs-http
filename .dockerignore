@@ -1,0 +1,7 @@
+.gcloudignore
+.git
+.gitignore
+Dockerfile
+env.sample.yaml
+env.yaml
+.idea
