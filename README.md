@@ -17,6 +17,5 @@ gcloud functions deploy your-function-identifier \
     --trigger-http \
     --memory 128MB \
     --timeout=20s \
-    --
     --env-vars-file=env.yaml
 ```
