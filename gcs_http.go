@@ -60,7 +60,7 @@ func main() {
 }
 
 func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprint(w, "ok")
+	_, _ = fmt.Fprint(w, "ok")
 }
 
 func p(err error, why string) {
@@ -111,7 +111,7 @@ func ServeFile(ctx context.Context, cancel context.CancelFunc, w http.ResponseWr
 	path := r.URL.Path[1:]
 	ctx = context.WithValue(ctx, "path", path)
 
-	log.Println("Object path:", path)
+	//log.Println("Object path:", path)
 	obj := bucket.Object(path)
 	reader, err := obj.NewReader(ctx)
 	if err == storage.ErrObjectNotExist {
@@ -127,7 +127,7 @@ func ServeFile(ctx context.Context, cancel context.CancelFunc, w http.ResponseWr
 		}
 	}()
 
-	log.Println("attrs: ", reader.Attrs)
+	//log.Println("attrs: ", reader.Attrs)
 
 	_, err = io.Copy(w, reader)
 	if err != nil {
