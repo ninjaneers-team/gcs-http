@@ -1,11 +1,11 @@
-// Package p contains an HTTP Cloud Function.
-package p
+package main
 
 import (
 	"cloud.google.com/go/storage"
 	"context"
 	"crypto/subtle"
 	"fmt"
+	"google.golang.org/api/option"
 	"io"
 	"log"
 	"net/http"
@@ -20,10 +20,8 @@ var bucket *storage.BucketHandle
 var authUsers map[string]string
 
 func init() {
-	var err error
 	baseCtx = context.Background()
-	client, err = storage.NewClient(baseCtx)
-	p(err, "creating client")
+	client = createStorageClient()
 
 	bucket = client.Bucket(os.Getenv("BUCKET"))
 
@@ -41,6 +39,28 @@ func init() {
 		}
 		log.Println("Allowed users:", authUsers)
 	}
+}
+
+func createStorageClient() *storage.Client {
+	options := []option.ClientOption{option.WithScopes(storage.ScopeReadOnly)}
+	auth := os.Getenv("GCS_DEPLOY_SECRET")
+	if auth != "" {
+		options = append(options, option.WithCredentialsJSON([]byte(auth)))
+	}
+	client, err := storage.NewClient(baseCtx, options...)
+	p(err, "creating client")
+	return client
+}
+
+func main() {
+	http.HandleFunc("/", ServeHTTP)
+	http.HandleFunc("/_ah/health", healthCheckHandler)
+	log.Print("Listening on port 8080")
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+
+func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprint(w, "ok")
 }
 
 func p(err error, why string) {
@@ -97,17 +117,20 @@ func ServeFile(ctx context.Context, cancel context.CancelFunc, w http.ResponseWr
 	if err == storage.ErrObjectNotExist {
 		p2(cancel, w, err, "Not found", http.StatusNotFound)
 		return
-	}
-	if p2(cancel, w, err, "finding object", http.StatusNotFound) {
+	} else if p2(cancel, w, err, "Not found", http.StatusNotFound) {
 		return
 	}
 	defer func() {
 		err := reader.Close()
-		p2(cancel, w, err, "closing output", http.StatusInternalServerError)
+		if err != nil {
+			log.Println("Error closing output", err)
+		}
 	}()
 
+	log.Println("attrs: ", reader.Attrs)
+
 	_, err = io.Copy(w, reader)
-	if p2(cancel, w, err, "streaming object", http.StatusInternalServerError) {
-		return
+	if err != nil {
+		log.Println("Error streaming object", err)
 	}
 }
