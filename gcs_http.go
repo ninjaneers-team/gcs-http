@@ -141,7 +141,6 @@ func ServeFile(ctx context.Context, cancel context.CancelFunc, w http.ResponseWr
 		}
 		// otherwise, try the regular path
 	}
-
 	obj := bucket.Object(path)
 	reader, err := obj.NewReader(ctx)
 	if err == storage.ErrObjectNotExist {
@@ -152,9 +151,8 @@ func ServeFile(ctx context.Context, cancel context.CancelFunc, w http.ResponseWr
 			return
 		}
 
-		if WriteToBucket(obj, ctx, err, data, cancel, w, path) {
-			return
-		}
+		WriteToBucket(obj, ctx, err, data, path)
+
 		_, _ = w.Write(data)
 		ctx.Done()
 		return
@@ -167,14 +165,16 @@ func ServeFile(ctx context.Context, cancel context.CancelFunc, w http.ResponseWr
 	}
 }
 
-func WriteToBucket(obj *storage.ObjectHandle, ctx context.Context, err error, data []byte, cancel context.CancelFunc, w http.ResponseWriter, path string) bool {
+func WriteToBucket(obj *storage.ObjectHandle, ctx context.Context, err error, data []byte, path string) bool {
 	writer := obj.NewWriter(ctx)
 	_, err = writer.Write(data)
-	if p2(cancel, w, err, "Caching upstream failed", http.StatusServiceUnavailable) {
+	if err != nil {
+		log.Println("Caching upstream failed (writer)", err)
 		return true
 	}
 	err = writer.Close()
-	if p2(cancel, w, err, "Caching upstream failed", http.StatusServiceUnavailable) {
+	if err != nil {
+		log.Println("Caching upstream failed (finish)", err)
 		return true
 	}
 	Debug("Cached from upstream", path, len(data))
