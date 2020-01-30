@@ -148,7 +148,7 @@ func ServeFile(ctx context.Context, cancel context.CancelFunc, w http.ResponseWr
 
 		Debug("Not found in Bucket, trying upstream", path)
 		data, err := FetchFromUpstream(path)
-		if p2(cancel, w, err, "Not Found, upstream: ", http.StatusNotFound) {
+		if p2(cancel, w, err, "Not Found, ", http.StatusNotFound) {
 			return
 		}
 
@@ -177,7 +177,7 @@ func WriteToBucket(obj *storage.ObjectHandle, ctx context.Context, err error, da
 	if p2(cancel, w, err, "Caching upstream failed", http.StatusServiceUnavailable) {
 		return true
 	}
-	Debug("Cached upstream", path, len(data))
+	Debug("Cached from upstream", path, len(data))
 	return false
 }
 
@@ -209,6 +209,12 @@ func FetchFromUpstream(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		err := response.Body.Close()
+		if err != nil {
+			Debug("Error Closing upstream reader:", err)
+		}
+	}()
 	if response.StatusCode != 200 {
 		return nil, errors.New("Upstream: " + response.Status)
 	}
