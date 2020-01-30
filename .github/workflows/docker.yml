@@ -9,8 +9,10 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Build the Docker image
-      run: docker build . --tag ${{ secrets.repository }}/gcs_http:latest ${{ secrets.repository }}/gcs_http:${GITHUB_SHA::8}
+      run: docker build . -t ${{ secrets.repository }}/gcs_http:latest -t ${{ secrets.repository }}/gcs_http:${GITHUB_SHA::8}
     - name: Docker Login
       run: docker login ${{ secrets.repository }} -u ${{ secrets.docker_username }} -p ${{ secrets.docker_password }}
     - name: Push the Docker image
-      run: docker push ${{ secrets.repository }}/gcs_http:latest ${{ secrets.repository }}/gcs_http:${GITHUB_SHA::8}
+      run: docker push ${{ secrets.repository }}/gcs_http:latest
+    - name: Push the Docker image
+      run: docker push ${{ secrets.repository }}/gcs_http:${GITHUB_SHA::8}
