@@ -13,6 +13,7 @@ require (
 	golang.org/x/net v0.0.0-20190724013045-ca1201d0de80 // indirect
 	golang.org/x/sys v0.0.0-20190812073006-9eafafc0a87e // indirect
 	golang.org/x/tools v0.0.0-20190809145639-6d4652c779c4 // indirect
+	google.golang.org/api v0.8.0
 	google.golang.org/grpc v1.22.1 // indirect
 	honnef.co/go/tools v0.0.1-2019.2.2 // indirect
 )
