@@ -56,7 +56,7 @@ func DecodeBasicAuth(basicAuthEnv string) map[string]string {
 }
 
 func createStorageClient() *storage.Client {
-	options := []option.ClientOption{option.WithScopes(storage.ScopeReadOnly)}
+	options := []option.ClientOption{option.WithScopes(storage.ScopeReadWrite)}
 	auth := os.Getenv("GCS_DEPLOY_SECRET")
 	if auth != "" {
 		options = append(options, option.WithCredentialsJSON([]byte(auth)))
