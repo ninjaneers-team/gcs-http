@@ -5,7 +5,6 @@ RUN apk update && apk add --no-cache git
 WORKDIR $GOPATH/src/gcs_http/
 COPY . .
 
-RUN go get -d -v
 RUN go build -o /go/bin/gcs_http
 
 #---

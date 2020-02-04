@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -37,6 +36,13 @@ func init() {
 	debug = strings.ToLower(os.Getenv("DEBUG")) == "true"
 }
 
+func main() {
+	http.HandleFunc("/", ServeHTTP)
+	http.HandleFunc("/_ah/health", healthCheckHandler)
+	log.Print("Listening on port 8080")
+	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+
 func DecodeBasicAuth(basicAuthEnv string) map[string]string {
 	if basicAuthEnv != "" {
 		items := strings.Split(basicAuthEnv, " ")
@@ -64,13 +70,6 @@ func createStorageClient() *storage.Client {
 	client, err := storage.NewClient(baseCtx, options...)
 	p(err, "creating client")
 	return client
-}
-
-func main() {
-	http.HandleFunc("/", ServeHTTP)
-	http.HandleFunc("/_ah/health", healthCheckHandler)
-	log.Print("Listening on port 8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
 func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
@@ -132,10 +131,12 @@ func ServeFile(ctx context.Context, cancel context.CancelFunc, w http.ResponseWr
 	//TODO add local caching with go-cache
 	if strings.HasSuffix(path, "-SNAPSHOT/maven-metadata.xml") {
 		Debug("Trying upstream first", path)
-		data, err := FetchFromUpstream(path)
+		reader, err := FetchFromUpstream(path)
 		if err == nil {
 			Debug("Fresh from upstream", path)
-			_, _ = w.Write(data)
+			if _, err = io.Copy(w, reader); err != nil {
+				Debug("Fresh from upstream failed: ", err)
+			}
 			ctx.Done()
 			return
 		}
@@ -146,14 +147,17 @@ func ServeFile(ctx context.Context, cancel context.CancelFunc, w http.ResponseWr
 	if err == storage.ErrObjectNotExist {
 
 		Debug("Not found in Bucket, trying upstream", path)
-		data, err := FetchFromUpstream(path)
+		reader, err := FetchFromUpstream(path)
 		if p2(cancel, w, err, "Not Found, ", http.StatusNotFound) {
 			return
 		}
 
-		WriteToBucket(obj, ctx, err, data, path)
+		teeReader := io.TeeReader(reader, w)
+		WriteToBucket(obj, ctx, err, teeReader, path)
 
-		_, _ = w.Write(data)
+		if err := reader.Close(); err != nil {
+			Debug("Error Closing upstream reader:", err)
+		}
 		ctx.Done()
 		return
 	} else if p2(cancel, w, err, "Not found", http.StatusNotFound) {
@@ -165,9 +169,9 @@ func ServeFile(ctx context.Context, cancel context.CancelFunc, w http.ResponseWr
 	}
 }
 
-func WriteToBucket(obj *storage.ObjectHandle, ctx context.Context, err error, data []byte, path string) bool {
+func WriteToBucket(obj *storage.ObjectHandle, ctx context.Context, err error, reader io.Reader, path string) bool {
 	writer := obj.NewWriter(ctx)
-	_, err = writer.Write(data)
+	_, err = io.Copy(writer, reader)
 	if err != nil {
 		log.Println("Caching upstream failed (writer)", err)
 		return true
@@ -177,7 +181,7 @@ func WriteToBucket(obj *storage.ObjectHandle, ctx context.Context, err error, da
 		log.Println("Caching upstream failed (finish)", err)
 		return true
 	}
-	Debug("Cached from upstream", path, len(data))
+	Debug("Cached from upstream", path, writer.Size)
 	return false
 }
 
@@ -200,7 +204,7 @@ func outputReader(reader *storage.Reader, err error, w http.ResponseWriter) {
 	}
 }
 
-func FetchFromUpstream(path string) ([]byte, error) {
+func FetchFromUpstream(path string) (io.ReadCloser, error) {
 	if upstreamUrl == "" {
 		return nil, errors.New("No Upstream specified")
 	}
@@ -209,15 +213,8 @@ func FetchFromUpstream(path string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		err := response.Body.Close()
-		if err != nil {
-			Debug("Error Closing upstream reader:", err)
-		}
-	}()
 	if response.StatusCode != 200 {
 		return nil, errors.New("Upstream: " + response.Status)
 	}
-	data, err := ioutil.ReadAll(response.Body)
-	return data, err
+	return response.Body, nil
 }
